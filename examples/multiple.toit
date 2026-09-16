@@ -6,7 +6,7 @@
 
 import gpio
 import i2c
-import vl53l0x show Vl53l0x
+import vl53l0x show Vl53l0x I2C-ADDRESS
 
 SDA ::= 4
 SCL ::= 5
@@ -27,16 +27,19 @@ main:
   XSHUT.size.repeat: | index |
     shutdowns[index].set 1
     sleep --ms=50
-    sensor := Vl53l0x bus
-    sensor.set-timeout 80
+    device := bus.device I2C-ADDRESS
+    sensor := Vl53l0x device
+    sensor.set-timeout --ms=80
     ok := false
     catch --trace=false: ok = sensor.init
     if ok:
       // Do this before releasing the next sensor, or two devices answer on 0x29.
-      sensor.set-address ADDRESSES[index]
+      // set-address closes the 0x29 device and opens one on the new address.
+      sensor.set-address ADDRESSES[index] --bus=bus
       sensor.start-continuous
       sensors.add sensor
     else:
+      device.close
       sensors.add null
     print "$NAMES[index] $(ok ? "ok" : "fail")"
 

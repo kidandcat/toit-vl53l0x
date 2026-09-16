@@ -14,14 +14,17 @@ toit pkg install github.com/kidandcat/toit-vl53l0x
 
 ## One sensor
 
+The driver takes a `serial.Device` (an `i2c.Device` implements that interface):
+
 ```toit
 import i2c
-import vl53l0x show Vl53l0x
+import vl53l0x show Vl53l0x I2C-ADDRESS
 
 main:
   bus := i2c.Bus --sda=4 --scl=5 --frequency=100_000
-  sensor := Vl53l0x bus
-  sensor.set-timeout 80
+  device := bus.device I2C-ADDRESS
+  sensor := Vl53l0x device
+  sensor.set-timeout --ms=80
   if not sensor.init:
     print "no VL53L0X on the bus"
     return
@@ -50,16 +53,18 @@ bus := i2c.Bus --sda=4 --scl=5 --frequency=100_000
 XSHUT.size.repeat: | index |
   shutdowns[index].set 1
   sleep --ms=50
-  sensor := Vl53l0x bus
-  sensor.set-timeout 80
+  device := bus.device I2C-ADDRESS
+  sensor := Vl53l0x device
+  sensor.set-timeout --ms=80
   if sensor.init:
-    sensor.set-address ADDRESSES[index]   // before the next one appears
+    sensor.set-address ADDRESSES[index] --bus=bus   // before the next one appears
     sensor.start-continuous
 ```
 
-`set-address` closes the old `i2c.Device` for you. That matters: Toit's `i2c.Bus`
-refuses two devices on one address, so a stale registration on `0x29` would
-break the next sensor.
+`set-address --bus=` closes the old `i2c.Device` for you and opens a
+replacement on the new address. That matters: Toit's `i2c.Bus` refuses two
+devices on one address, so a stale registration on `0x29` would break the
+next sensor.
 
 See `examples/multiple.toit` for the complete version.
 
@@ -67,18 +72,22 @@ See `examples/multiple.toit` for the complete version.
 
 | Member | Purpose |
 | --- | --- |
-| `Vl53l0x bus --address=0x29` | Bind to a sensor on an `i2c.Bus`. |
+| `Vl53l0x device` | Bind to a sensor through a `serial.Device`. |
+| `I2C-ADDRESS` / `ADDRESS-DEFAULT` | Power-up address `0x29`. |
 | `init --io-2v8=true -> bool` | DataInit, StaticInit and reference calibration. False if the sensor did not answer. |
-| `set-address new/int` | Move the sensor to another address, for multi-sensor buses. |
-| `set-timeout ms/int` | I/O timeout. 0 disables it. |
-| `start-continuous period-ms=0` | Continuous ranging. 0 means back to back. |
-| `stop-continuous` | Back to single-shot idle. |
+| `set-address new/int --bus=` | Move the sensor to another address, for multi-sensor buses. |
+| `set-timeout --ms=80` | I/O timeout. 0 disables it. Positional `set-timeout 80` still works. |
+| `start-continuous --period-ms=0` | Continuous ranging. 0 means back to back. |
+| `stop-continuous` | Back to idle. |
+| `close` | Stop ranging; close the device only if this driver created it. |
 | `read-range -> int?` | Millimetres, or null on timeout. Blocks until a sample is ready. |
 | `read-range-if-ready -> int?` | Millimetres, or null if nothing new. Never blocks. |
 | `timeout-occurred -> bool` | Whether a read timed out since the last call. Reading clears it. |
-| `set-signal-rate-limit mcps/float` | Return signal rate limit, default 0.25 MCPS. |
+| `set-signal-rate-limit --limit-mcps=0.25` | Return signal rate limit, default 0.25 MCPS. |
 | `get-measurement-timing-budget -> int` | Current budget in microseconds. |
-| `set-measurement-timing-budget us/int -> bool` | Longer budget, better accuracy. Minimum around 20000. |
+| `set-measurement-timing-budget --budget-us=20000` | Longer budget, better accuracy. Minimum around 20000. |
+
+`toit docs serve` shows the library and class toitdocs.
 
 ### Blocking or not
 

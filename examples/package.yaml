@@ -1,0 +1,3 @@
+dependencies:
+  vl53l0x:
+    path: ..
